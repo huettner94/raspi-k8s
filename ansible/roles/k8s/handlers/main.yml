@@ -1,0 +1,14 @@
+- name: Restart Keepalived
+  service:
+    name: keepalived
+    state: restarted
+
+- name: Restart haproxy
+  service:
+    name: haproxy
+    state: restarted
+
+- name: Restart docker
+  service:
+    name: docker
+    state: restarted

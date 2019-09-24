@@ -1,0 +1,31 @@
+- name: Remove unused packages
+  apt:
+    name: unattended-upgrades
+    state: absent
+
+- name: Run Updates
+  apt:
+    update_cache: yes
+    upgrade: dist
+
+- name: Install common tools
+  apt:
+    name: ["ntp"]
+    state: present
+
+- name: Disable swap
+  command: swapoff -a -v
+  register: swapoff
+  changed_when: '"swapoff" in swapoff.stdout'
+
+- name: Disable swap in fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].+?\sswap\s+sw\s+.*)$'
+    replace: '# \1'
+
+- name: Start ntp
+  service:
+    name: ntp
+    state: started
+    enabled: yes

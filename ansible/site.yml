@@ -1,0 +1,7 @@
+- hosts: all
+  roles:
+    - role: common
+      tags: ["common"]
+    - role: k8s
+      tags: ["k8s"]
+  become: true

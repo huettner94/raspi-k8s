@@ -1,0 +1,4 @@
+k8s_master: True
+k8s_worker: True
+k8s_root: False
+k8s_vip: 192.168.121.254

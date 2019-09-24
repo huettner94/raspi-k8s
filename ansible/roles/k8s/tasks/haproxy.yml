@@ -1,0 +1,44 @@
+- name: Install haproxy, keepalived
+  apt:
+    name: ["haproxy", "keepalived"]
+    state: present
+
+- name: Enable non local bind
+  sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Keepalived Config
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: 0640
+  notify:
+    - Restart Keepalived
+
+- name: Start Keepalived
+  service:
+    name: keepalived
+    state: started
+    enabled: yes
+
+- name: haproxy Config
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: 0640
+  notify:
+    - Restart haproxy
+
+- name: Start haproxy
+  service:
+    name: haproxy
+    state: started
+    enabled: yes

@@ -1,0 +1,181 @@
+- name: Install docker + other utilities
+  apt:
+    name: ["docker.io", "apt-transport-https", "curl"]
+    state: present
+
+- name: Copy docker config
+  copy:
+    src: daemon.json
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - Restart docker
+
+- meta: flush_handlers
+
+- name: Add K8S Repo Key
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+
+- name: Add K8S Repo
+  apt_repository:
+    repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+    state: present
+
+- name: Install K8S
+  apt:
+    name: ["kubectl", "kubeadm", "kubelet"]
+    state: present
+    update_cache: yes
+
+- name: Hold K8S Packages
+  dpkg_selections:
+    name: "{{item}}"
+    selection: hold
+  with_items:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: HAProxy
+  import_tasks: haproxy.yml
+
+- name: Set Hostname
+  hostname:
+    name: "{{ ansible_hostname }}"
+
+- name: Set Hosts File
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '.*{{ item }}$'
+    line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ hostvars[item].ansible_hostname }} {{ hostvars[item].ansible_fqdn }}"
+    state: present
+  when: "hostvars[item].ansible_default_ipv4.address is defined"
+  with_items: "{{ groups['all'] }}"
+
+- meta: flush_handlers
+
+- name: Check if K8S is initialized
+  stat:
+    path: "/etc/kubernetes/pki/ca.key"
+  register: kubeadm_ca
+
+- name: Reset K8S
+  command: "kubeadm reset --force"
+  when: k8s_root and not kubeadm_ca.stat.exists
+
+- name: Initializes K8S
+  shell: |
+    kubeadm init \
+      --control-plane-endpoint "{{ k8s_vip }}:6443" \
+      --upload-certs \
+      --pod-network-cidr=10.244.0.0/16 \
+      --apiserver-bind-port 6444
+  when: k8s_root and not kubeadm_ca.stat.exists
+
+- name: Create .kube
+  file:
+    name: ~/.kube
+    state: directory
+
+- name: Copy .kube/config
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: ~/.kube/config
+    remote_src: True
+  when: k8s_root
+
+- name: Check flannel daemonset is working
+  shell: kubectl get ds --all-namespaces | grep flannel
+  when: k8s_root
+  register: check_net
+  ignore_errors: true
+  changed_when: false
+
+- name: Create flannel network daemonset
+  command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/32a765fd19ba45b387fdc5e3812c41fff47cfd55/Documentation/kube-flannel.yml
+  when: k8s_root and check_net is failed
+
+- name: Copy flannel config
+  copy:
+    src: 10-flannel.conflist
+    dest: /etc/cni/net.d/10-flannel.conflist
+    owner: root
+    group: root
+    mode: 0644
+  register: apply_flannel
+  until: apply_flannel is succeeded
+  retries: 6
+  delay: 10
+  when: k8s_root
+
+- name: Wait for it to settle
+  command: kubectl get pods --all-namespaces
+  register: cmd_res
+  retries: 30
+  delay: 10
+  until: cmd_res.stdout_lines | reject('search', ' STATUS ') | reject('search' ,'Running') | list | count == 0
+  when: k8s_root
+  changed_when: false
+
+- name: Get kubeadm join command
+  command: kubeadm token create --print-join-command
+  when: k8s_root
+  register: kubeadm_join
+  changed_when: false
+
+- set_fact:
+    kubeadm_join_cmd: "{{ kubeadm_join.stdout }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: True
+  with_items: "{{ play_hosts }}"
+  when: k8s_root
+
+- name: Get kubeadm ctl plane secret key
+  command: kubeadm init phase upload-certs --upload-certs
+  when: k8s_root
+  register: kubeadm_key
+  changed_when: false
+
+- set_fact:
+    kubeadm_cert_key: "{{ kubeadm_key.stdout_lines[-1] }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: True
+  with_items: "{{ play_hosts }}"
+  when: k8s_root
+
+- name: Run kubernetes join command
+  command: "{{ kubeadm_join_cmd }} --control-plane --certificate-key {{ kubeadm_cert_key }} --apiserver-bind-port 6444"
+  when: k8s_master and not k8s_root and not kubeadm_ca.stat.exists
+
+- name: Copy flannel config
+  copy:
+    src: 10-flannel.conflist
+    dest: /etc/cni/net.d/10-flannel.conflist
+    owner: root
+    group: root
+    mode: 0644
+  register: apply_flannel
+  until: apply_flannel is succeeded
+  retries: 6
+  delay: 10
+  when: k8s_master
+
+- name: Wait for it to settle
+  command: kubectl get nodes
+  register: cmd_res
+  retries: 30
+  delay: 10
+  until: cmd_res.stdout_lines | select('search' ,'NotReady') | list | count == 0
+  when: k8s_root
+  changed_when: false
+
+- name: Remove Master Taint
+  command: kubectl taint nodes --all node-role.kubernetes.io/master-
+  register: cmd_rs
+  when: k8s_root
+  changed_when: '"untainted" in cmd_rs.stdout'
+  failed_when: false
