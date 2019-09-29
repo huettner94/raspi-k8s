@@ -1,0 +1,30 @@
+- name: Install MetalLB
+  helm_cli:
+    name: metallb
+    state: present
+    chart_ref: stable/metallb
+    release_namespace: kube-system
+    tiller_namespace: kube-system
+    values:
+      configInline:
+        address-pools:
+        - name: default
+          protocol: layer2
+          addresses:
+          - 10.0.128.20-10.0.128.25
+  when: k8s_root
+
+- name: Install traefik
+  helm_cli:
+    name: traefik
+    state: present
+    chart_ref: stable/traefik
+    release_namespace: kube-system
+    tiller_namespace: kube-system
+    values:
+      rbac:
+        enabled: true
+      dashboard:
+        enabled: true
+        domain: traefik.apps.huettner.local
+  when: k8s_root

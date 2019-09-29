@@ -1,0 +1,37 @@
+- name: Install pip
+  apt:
+    name: ["python-pip", "python3-pip"]
+    state: present
+
+- name: install required python modules
+  pip:
+    name: openshift
+    state: present
+
+- name: Get helm client script
+  get_url:
+    url: https://git.io/get_helm.sh
+    dest: /root/get_helm.sh
+    mode: '0750'
+  when: k8s_master
+
+- name: Install Helm
+  command: /root/get_helm.sh
+  args:
+    creates: /usr/local/bin/helm
+  when: k8s_master
+
+- name: Copy Tiller yml file
+  copy:
+    src: tiller.yml
+    dest: /root/tiller.yml
+    owner: root
+    group: root
+    mode: 0644
+  when: k8s_root
+
+- name: Create Tiller in K8s
+  k8s:
+    state: present
+    src: /root/tiller.yml
+    wait: yes

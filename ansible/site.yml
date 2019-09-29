@@ -4,4 +4,8 @@
       tags: ["common"]
     - role: k8s
       tags: ["k8s"]
+    - role: helm
+      tags: ["helm"]
+    - role: helm-clients
+      tags: ["helm-clients"]
   become: true

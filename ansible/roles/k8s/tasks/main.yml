@@ -1,7 +1,17 @@
 - name: Install docker + other utilities
   apt:
-    name: ["docker.io", "apt-transport-https", "curl"]
+    name: ["docker.io", "apt-transport-https", "curl", "arptables"]
     state: present
+
+- name: Ensure that host uses legacy iptables instead of the nft backend
+  alternatives:
+    name: "{{ item }}"
+    path: "/usr/sbin/{{ item }}-legacy"
+  with_items:
+    - iptables
+    - ip6tables
+    - arptables
+    - ebtables
 
 - name: Copy docker config
   copy:
@@ -172,6 +182,15 @@
   until: cmd_res.stdout_lines | select('search' ,'NotReady') | list | count == 0
   when: k8s_root
   changed_when: false
+
+- name: Ensure that k8s uses systemd as cgroup driver
+  lineinfile:
+    path: /var/lib/kubelet/kubeadm-flags.env
+    regexp: '^(.*)--cgroup-driver=(\w+) (.*)$'
+    line: '\1--cgroup-driver=systemd \3'
+    backrefs: yes
+  notify:
+    - Restart kubelet
 
 - name: Remove Master Taint
   command: kubectl taint nodes --all node-role.kubernetes.io/master-

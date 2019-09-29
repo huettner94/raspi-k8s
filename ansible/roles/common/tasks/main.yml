@@ -1,6 +1,23 @@
+- name: Ensure 64bit option for raspi is set
+  lineinfile:
+    path: /boot/config.txt
+    regexp: '^arm_64bit='
+    line: 'arm_64bit=1'
+  when: 'ansible_architecture == "armv7l"'
+
+- name: Check if 64bit
+  command: "uname -a"
+  register: out
+  changed_when: false
+
+- name: fail
+  fail:
+    msg: "This is a raspi but not running in aarch64 mode. Maybe you need to run rpi-update and reboot???"
+  failed_when: 'not "aarch64" in out.stdout and ansible_architecture == "armv7l"'
+
 - name: Remove unused packages
   apt:
-    name: unattended-upgrades
+    name: ["dphys-swapfile", "unattended-upgrades"]
     state: absent
 
 - name: Run Updates
@@ -10,7 +27,7 @@
 
 - name: Install common tools
   apt:
-    name: ["ntp"]
+    name: ["ntp", "vim", "wget", "curl"]
     state: present
 
 - name: Disable swap
