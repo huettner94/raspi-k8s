@@ -1,6 +1,6 @@
 - name: Install docker + other utilities
   apt:
-    name: ["docker.io", "apt-transport-https", "curl", "arptables"]
+    name: ["docker.io", "apt-transport-https", "curl", "arptables", "ebtables"]
     state: present
 
 - name: Ensure that host uses legacy iptables instead of the nft backend
