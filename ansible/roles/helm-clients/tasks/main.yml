@@ -28,3 +28,13 @@
         enabled: true
         domain: traefik.apps.huettner.local
   when: k8s_root
+
+- name: Install rook operator
+  helm_cli:
+    name: rook
+    state: present
+    chart_repo_url: "https://charts.rook.io/release"
+    chart_ref:  rook-ceph
+    release_namespace: rook
+    tiller_namespace: kube-system
+  when: k8s_root
