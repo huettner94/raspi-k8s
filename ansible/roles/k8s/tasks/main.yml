@@ -1,6 +1,11 @@
-- name: Install docker + other utilities
+- name: Ensure that raspian docker is not installed
   apt:
-    name: ["docker.io", "apt-transport-https", "curl", "arptables", "ebtables"]
+    name: docker.io
+    state: absent
+
+- name: Install utilities
+  apt:
+    name: ["apt-transport-https", "curl", "arptables", "ebtables"]
     state: present
 
 - name: Ensure that host uses legacy iptables instead of the nft backend
@@ -13,6 +18,39 @@
     - arptables
     - ebtables
 
+- name: Download docker binaries
+  unarchive:
+    src: https://download.docker.com/linux/static/stable/aarch64/docker-19.03.2.tgz
+    dest: /usr/local/bin
+    remote_src: yes
+    owner: root
+    group: root
+    mode: 0755
+    extra_opts:
+      - "--strip-components=1"
+
+- name: Copy Systemd Service files
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - docker.service
+    - docker.socket
+  notify:
+    - Daemon-reload
+    - Restart docker
+
+- name: Create docker config dir
+  file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
 - name: Copy docker config
   copy:
     src: daemon.json
@@ -23,7 +61,18 @@
   notify:
     - Restart docker
 
+- name: Ensure that docker group exists
+  group:
+    name: docker
+    state: present
+    gid: 115
+
 - meta: flush_handlers
+
+- name: Ensure that docker starts at boot
+  service:
+    name: docker
+    enabled: yes
 
 - name: Add K8S Repo Key
   apt_key:
@@ -106,21 +155,8 @@
   changed_when: false
 
 - name: Create flannel network daemonset
-  command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/32a765fd19ba45b387fdc5e3812c41fff47cfd55/Documentation/kube-flannel.yml
+  command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/2140ac876ef134e0ed5af15c65e414cf26827915/Documentation/kube-flannel.yml
   when: k8s_root and check_net is failed
-
-- name: Copy flannel config
-  copy:
-    src: 10-flannel.conflist
-    dest: /etc/cni/net.d/10-flannel.conflist
-    owner: root
-    group: root
-    mode: 0644
-  register: apply_flannel
-  until: apply_flannel is succeeded
-  retries: 6
-  delay: 10
-  when: k8s_root
 
 - name: Wait for it to settle
   command: kubectl get pods --all-namespaces
@@ -161,19 +197,6 @@
   command: "{{ kubeadm_join_cmd }} --control-plane --certificate-key {{ kubeadm_cert_key }} --apiserver-bind-port 6444"
   when: k8s_master and not k8s_root and not kubeadm_ca.stat.exists
 
-- name: Copy flannel config
-  copy:
-    src: 10-flannel.conflist
-    dest: /etc/cni/net.d/10-flannel.conflist
-    owner: root
-    group: root
-    mode: 0644
-  register: apply_flannel
-  until: apply_flannel is succeeded
-  retries: 6
-  delay: 10
-  when: k8s_master
-
 - name: Wait for it to settle
   command: kubectl get nodes
   register: cmd_res
@@ -183,11 +206,11 @@
   when: k8s_root
   changed_when: false
 
-- name: Ensure that k8s uses systemd as cgroup driver
+- name: Ensure that k8s uses cgroupfs as cgroup driver
   lineinfile:
     path: /var/lib/kubelet/kubeadm-flags.env
     regexp: '^(.*)--cgroup-driver=(\w+) (.*)$'
-    line: '\1--cgroup-driver=systemd \3'
+    line: '\1--cgroup-driver=cgroupfs \3'
     backrefs: yes
   notify:
     - Restart kubelet
