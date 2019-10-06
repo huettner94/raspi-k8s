@@ -33,22 +33,7 @@
         defaultCN: apps.huettner.local
         defaultSANList:
           - "*.apps.huettner.local"
-  when: k8s_root
-
-- name: Install kubernetes-dashboard
-  helm_cli:
-    name: kubernetes-dashboard
-    state: present
-    chart_ref: stable/kubernetes-dashboard
-    release_namespace: kube-system
-    tiller_namespace: kube-system
-    values:
-      image:
-        repository: k8s.gcr.io/kubernetes-dashboard-arm
-      ingress:
-        enabled: true
-        hosts:
-          - dashboard.apps.huettner.local
+        insecureSkipVerify: true
   when: k8s_root
 
 - name: Install rook operator
