@@ -1,0 +1,13 @@
+{{- range .Values.pools.replicated }}
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: {{ .name }}
+  namespace: rook-ceph
+spec:
+  failureDomain: host
+  replicated:
+    size: {{ .replicas }}
+  deviceClass: hdd
+---
+{{- end }}
