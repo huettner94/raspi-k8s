@@ -5,7 +5,7 @@
 
 - name: Install utilities
   apt:
-    name: ["apt-transport-https", "curl", "arptables", "ebtables"]
+    name: ["apt-transport-https", "curl", "arptables", "ebtables", "lvm2"]
     state: present
 
 - name: Ensure that host uses legacy iptables instead of the nft backend

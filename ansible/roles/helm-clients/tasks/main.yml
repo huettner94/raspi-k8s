@@ -42,6 +42,28 @@
     state: present
     chart_repo_url: "https://charts.rook.io/release"
     chart_ref:  rook-ceph
-    release_namespace: rook
+    release_namespace: rook-ceph
     tiller_namespace: kube-system
+  when: k8s_root
+
+- name: Copy ceph-cluster chart
+  copy:
+    src: rook-cluster/
+    dest: /opt/rook-cluster
+  when: k8s_root
+
+- name: Install ceph-cluster
+  helm_cli:
+    name: ceph-cluster
+    state: present
+    chart_ref: /opt/rook-cluster
+    release_namespace: rook-ceph
+    tiller_namespace: kube-system
+    values:
+      pools:
+        replicated:
+          - name: high
+            replicas: 3
+          - name: low
+            replicas: 1
   when: k8s_root
