@@ -79,3 +79,49 @@
           - name: low
             replicas: 1
   when: k8s_root
+
+# WORKAROUND DUE TO https://github.com/helm/charts/pull/17268
+- name: Clone prometheus chart
+  git:
+    repo: https://github.com/oke-py/charts.git
+    version: prometheus
+    dest: /opt/prometheus-chart
+  when: k8s_root
+
+- name: Install prometheus
+  helm_cli:
+    name: prometheus
+    state: present
+    chart_ref: /opt/prometheus-chart/stable/prometheus
+    release_namespace: prometheus
+    tiller_namespace: kube-system
+    values:
+      alertmanager:
+        baseURL: alertmanager.apps.huettner.local
+        ingress:
+          enabled: True
+          hosts:
+            - alertmanager.apps.huettner.local
+        persistentVolume:
+          storageClass: rook-ceph-block-low
+        statefulSet:
+          enabled: True
+      kubeStateMetrics:
+        image:
+          repository: carlosedp/kube-state-metrics
+          tag: v1.7.2
+      pushgateway:
+        enabled: False
+      server:
+        baseURL: prometheus.apps.huettner.local
+        global:
+          scrape_interval: 15s
+        ingress:
+          enabled: True
+          hosts: 
+            - prometheus.apps.huettner.local
+        persistentVolume:
+          storageClass: rook-ceph-block-low
+        statefulSet:
+          enabled: True
+  when: k8s_root
