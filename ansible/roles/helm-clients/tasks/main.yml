@@ -44,6 +44,18 @@
     chart_ref:  rook-ceph
     release_namespace: rook-ceph
     tiller_namespace: kube-system
+    values:
+      csi:
+        cephcsi:
+          image: jrefi/ceph-csi:latest
+        registrar:
+          image: jrefi/csi-node-driver-registrar:latest
+        provisioner:
+          image: jrefi/csi-provisioner:latest
+        snapshotter:
+          image: jrefi/csi-snapshotter:latest
+        attacher:
+          image: jrefi/csi-attacher:latest
   when: k8s_root
 
 - name: Copy ceph-cluster chart
