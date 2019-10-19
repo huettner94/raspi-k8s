@@ -1,3 +1,8 @@
+- name: Run Updates
+  apt:
+    update_cache: yes
+    upgrade: dist
+
 - name: Ensure 64bit option for raspi is set
   lineinfile:
     path: /boot/config.txt
@@ -12,18 +17,13 @@
 
 - name: fail
   fail:
-    msg: "This is a raspi but not running in aarch64 mode. Maybe you need to run rpi-update and reboot???"
+    msg: "This is a raspi but not running in aarch64 mode. Maybe you need to reboot???"
   failed_when: 'not "aarch64" in out.stdout and ansible_architecture == "armv7l"'
 
 - name: Remove unused packages
   apt:
     name: ["dphys-swapfile", "unattended-upgrades"]
     state: absent
-
-- name: Run Updates
-  apt:
-    update_cache: yes
-    upgrade: dist
 
 - name: Install common tools
   apt:
