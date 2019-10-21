@@ -3,9 +3,9 @@
     name: docker.io
     state: absent
 
-- name: Install utilities
+- name: Install utilities + rbd
   apt:
-    name: ["apt-transport-https", "curl", "arptables", "ebtables", "lvm2"]
+    name: ["apt-transport-https", "curl", "arptables", "ebtables", "lvm2", "rbd-nbd"]
     state: present
 
 - name: Ensure that host uses legacy iptables instead of the nft backend
