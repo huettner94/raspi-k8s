@@ -97,7 +97,6 @@
     tiller_namespace: kube-system
     values:
       alertmanager:
-        baseURL: alertmanager.apps.huettner.local
         ingress:
           enabled: True
           hosts:
@@ -106,6 +105,9 @@
           storageClass: rook-ceph-block-low
         statefulSet:
           enabled: True
+      configmapReload:
+        image:
+          tag: v0.3.0
       kubeStateMetrics:
         image:
           repository: carlosedp/kube-state-metrics
@@ -113,7 +115,6 @@
       pushgateway:
         enabled: False
       server:
-        baseURL: prometheus.apps.huettner.local
         global:
           scrape_interval: 15s
         ingress:
