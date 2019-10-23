@@ -1,128 +1,132 @@
-- name: Install MetalLB
-  helm_cli:
-    name: metallb
-    state: present
-    chart_ref: stable/metallb
-    release_namespace: kube-system
-    tiller_namespace: kube-system
-    values:
-      configInline:
-        address-pools:
-        - name: default
-          protocol: layer2
-          addresses:
-          - 10.0.128.20-10.0.128.25
-  when: k8s_root
+- name: Install charts
+  block: 
+    
+  - name: Install MetalLB
+    helm_cli:
+      name: metallb
+      state: present
+      chart_ref: stable/metallb
+      release_namespace: kube-system
+      tiller_namespace: kube-system
+      values:
+        configInline:
+          address-pools:
+          - name: default
+            protocol: layer2
+            addresses:
+            - 10.0.128.20-10.0.128.25
+    when: k8s_root
 
-- name: Install traefik
-  helm_cli:
-    name: traefik
-    state: present
-    chart_ref: stable/traefik
-    release_namespace: kube-system
-    tiller_namespace: kube-system
-    values:
-      rbac:
-        enabled: true
-      dashboard:
-        enabled: true
-        domain: traefik.apps.huettner.local
-      ssl:
-        enabled: true
-        generateTLS: true
-        defaultCN: apps.huettner.local
-        defaultSANList:
-          - "*.apps.huettner.local"
-        insecureSkipVerify: true
-  when: k8s_root
+  - name: Install traefik
+    helm_cli:
+      name: traefik
+      state: present
+      chart_ref: stable/traefik
+      release_namespace: kube-system
+      tiller_namespace: kube-system
+      values:
+        rbac:
+          enabled: true
+        dashboard:
+          enabled: true
+          domain: traefik.apps.huettner.local
+        ssl:
+          enabled: true
+          generateTLS: true
+          defaultCN: apps.huettner.local
+          defaultSANList:
+            - "*.apps.huettner.local"
+          insecureSkipVerify: true
+    when: k8s_root
 
-- name: Install rook operator
-  helm_cli:
-    name: rook
-    state: present
-    chart_repo_url: "https://charts.rook.io/release"
-    chart_ref:  rook-ceph
-    release_namespace: rook-ceph
-    tiller_namespace: kube-system
-    values:
-      csi:
-        cephcsi:
-          image: jrefi/ceph-csi:latest
-        registrar:
-          image: jrefi/csi-node-driver-registrar:latest
-        provisioner:
-          image: jrefi/csi-provisioner:latest
-        snapshotter:
-          image: jrefi/csi-snapshotter:latest
-        attacher:
-          image: jrefi/csi-attacher:latest
-  when: k8s_root
+  - name: Install rook operator
+    helm_cli:
+      name: rook
+      state: present
+      chart_repo_url: "https://charts.rook.io/release"
+      chart_ref:  rook-ceph
+      release_namespace: rook-ceph
+      tiller_namespace: kube-system
+      values:
+        csi:
+          cephcsi:
+            image: jrefi/ceph-csi:latest
+          registrar:
+            image: jrefi/csi-node-driver-registrar:latest
+          provisioner:
+            image: jrefi/csi-provisioner:latest
+          snapshotter:
+            image: jrefi/csi-snapshotter:latest
+          attacher:
+            image: jrefi/csi-attacher:latest
+    when: k8s_root
 
-- name: Copy ceph-cluster chart
-  copy:
-    src: rook-cluster/
-    dest: /opt/rook-cluster
-  when: k8s_root
+  - name: Copy ceph-cluster chart
+    copy:
+      src: rook-cluster/
+      dest: /opt/rook-cluster
+    when: k8s_root
 
-- name: Install ceph-cluster
-  helm_cli:
-    name: ceph-cluster
-    state: present
-    chart_ref: /opt/rook-cluster
-    release_namespace: rook-ceph
-    tiller_namespace: kube-system
-    values:
-      pools:
-        replicated:
-          - name: high
-            replicas: 3
-          - name: low
-            replicas: 1
-  when: k8s_root
+  - name: Install ceph-cluster
+    helm_cli:
+      name: ceph-cluster
+      state: present
+      chart_ref: /opt/rook-cluster
+      release_namespace: rook-ceph
+      tiller_namespace: kube-system
+      values:
+        pools:
+          replicated:
+            - name: high
+              replicas: 3
+            - name: low
+              replicas: 1
+    when: k8s_root
 
-# WORKAROUND DUE TO https://github.com/helm/charts/pull/17268
-- name: Clone prometheus chart
-  git:
-    repo: https://github.com/oke-py/charts.git
-    version: prometheus
-    dest: /opt/prometheus-chart
-  when: k8s_root
+  # WORKAROUND DUE TO https://github.com/helm/charts/pull/17268
+  - name: Clone prometheus chart
+    git:
+      repo: https://github.com/oke-py/charts.git
+      version: prometheus
+      dest: /opt/prometheus-chart
+    when: k8s_root
 
-- name: Install prometheus
-  helm_cli:
-    name: prometheus
-    state: present
-    chart_ref: /opt/prometheus-chart/stable/prometheus
-    release_namespace: prometheus
-    tiller_namespace: kube-system
-    values:
-      alertmanager:
-        ingress:
-          enabled: True
-          hosts:
-            - alertmanager.apps.huettner.local
-        persistentVolume:
-          storageClass: rook-ceph-block-low
-        statefulSet:
-          enabled: True
-      configmapReload:
-        image:
-          tag: v0.3.0
-      kubeStateMetrics:
-        image:
-          repository: carlosedp/kube-state-metrics
-          tag: v1.7.2
-      pushgateway:
-        enabled: False
-      server:
-        global:
-          scrape_interval: 15s
-        ingress:
-          enabled: True
-          hosts: 
-            - prometheus.apps.huettner.local
-        persistentVolume:
-          storageClass: rook-ceph-block-low
-        statefulSet:
-          enabled: True
+  - name: Install prometheus
+    helm_cli:
+      name: prometheus
+      state: present
+      chart_ref: /opt/prometheus-chart/stable/prometheus
+      release_namespace: prometheus
+      tiller_namespace: kube-system
+      values:
+        alertmanager:
+          ingress:
+            enabled: True
+            hosts:
+              - alertmanager.apps.huettner.local
+          persistentVolume:
+            storageClass: rook-ceph-block-low
+          statefulSet:
+            enabled: True
+        configmapReload:
+          image:
+            tag: v0.3.0
+        kubeStateMetrics:
+          image:
+            repository: carlosedp/kube-state-metrics
+            tag: v1.7.2
+        pushgateway:
+          enabled: False
+        server:
+          global:
+            scrape_interval: 15s
+          ingress:
+            enabled: True
+            hosts: 
+              - prometheus.apps.huettner.local
+          persistentVolume:
+            storageClass: rook-ceph-block-low
+          statefulSet:
+            enabled: True
+
   when: k8s_root
