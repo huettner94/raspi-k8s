@@ -129,4 +129,32 @@
           statefulSet:
             enabled: True
 
+  - name: Install grafana
+    helm_cli:
+      name: grafana
+      state: present
+      chart_ref: stable/grafana
+      release_namespace: prometheus
+      tiller_namespace: kube-system
+      values:
+        image:
+          repository: grafana/grafana-arm64v8-linux # Temporary Fix for https://github.com/grafana/grafana/issues/19585
+          tag: dev-musl
+        persistence:
+          enabled: True
+          storageClassName: rook-ceph-block-low
+        ingress:
+          enabled: True
+          hosts:
+            - grafana.apps.huettner.local
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: Prometheus
+                type: prometheus
+                access: proxy
+                isDefault: true
+                url: http://prometheus-server.prometheus.svc.cluster.local
+
   when: k8s_root
