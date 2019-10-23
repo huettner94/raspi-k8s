@@ -1,6 +1,6 @@
 - name: Install charts
   block: 
-    
+
   - name: Install MetalLB
     helm_cli:
       name: metallb
@@ -80,7 +80,7 @@
             - name: high
               replicas: 3
             - name: low
-              replicas: 1
+              replicas: 2
     when: k8s_root
 
   # WORKAROUND DUE TO https://github.com/helm/charts/pull/17268
