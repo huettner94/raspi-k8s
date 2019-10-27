@@ -15,6 +15,8 @@
             protocol: layer2
             addresses:
             - 10.0.128.20-10.0.128.25
+        prometheus:
+          scrapeAnnotations: True
     when: k8s_root
 
   - name: Install traefik
@@ -135,6 +137,8 @@
             storageClass: rook-ceph-block-low
           statefulSet:
             enabled: True
+        serverFiles:
+          alerts: "{{ prometheus_alerts }}"
 
   - name: Install grafana
     helm_cli:
