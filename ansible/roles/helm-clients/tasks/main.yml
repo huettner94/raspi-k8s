@@ -37,6 +37,13 @@
           defaultSANList:
             - "*.apps.huettner.local"
           insecureSkipVerify: true
+        metrics:
+          prometheus:
+            enabled: True
+        deployment:
+          podAnnotations:
+            prometheus.io/scrape: true
+            prometheus.io/port: 8080
     when: k8s_root
 
   - name: Install rook operator
@@ -156,5 +163,7 @@
                 access: proxy
                 isDefault: true
                 url: http://prometheus-server.prometheus.svc.cluster.local
+        plugins:
+          - grafana-piechart-panel
 
   when: k8s_root
