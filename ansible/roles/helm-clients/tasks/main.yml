@@ -1,173 +1,50 @@
 - name: Install charts
   block: 
 
-  - name: Install MetalLB
-    helm_cli:
-      name: metallb
+  - name: Install required tools
+    pip:
+      executable: /usr/bin/pip3
+      name: openshift
       state: present
-      chart_ref: stable/metallb
-      release_namespace: kube-system
-      tiller_namespace: kube-system
-      values:
-        configInline:
-          address-pools:
-          - name: default
-            protocol: layer2
-            addresses:
-            - 10.0.128.20-10.0.128.25
-        prometheus:
-          scrapeAnnotations: True
-    when: k8s_root
 
-  - name: Install traefik
-    helm_cli:
-      name: traefik
+  - name: Download CRD for Helm Operator
+    get_url: 
+      url: https://raw.githubusercontent.com/fluxcd/helm-operator/master/deploy/flux-helm-release-crd.yaml
+      dest: /root/flux-helm-release-crd.yaml
+
+  - name: Add CRDs for Helm Operator
+    k8s:
       state: present
-      chart_ref: stable/traefik
-      release_namespace: kube-system
-      tiller_namespace: kube-system
-      values:
-        rbac:
-          enabled: true
-        dashboard:
-          enabled: true
-          domain: traefik.apps.huettner.local
-        ssl:
-          enabled: true
-          generateTLS: true
-          defaultCN: apps.huettner.local
-          defaultSANList:
-            - "*.apps.huettner.local"
-          insecureSkipVerify: true
-        metrics:
-          prometheus:
-            enabled: True
-        deployment:
-          podAnnotations:
-            prometheus.io/scrape: true
-            prometheus.io/port: 8080
-    when: k8s_root
-
-  - name: Install rook operator
+      src: /root/flux-helm-release-crd.yaml
+    
+  - name: Add Helm Operator
     helm_cli:
-      name: rook
+      name: helm-operator
       state: present
-      chart_repo_url: "https://charts.rook.io/release"
-      chart_ref:  rook-ceph
-      release_namespace: rook-ceph
+      release_namespace: fluxcd
       tiller_namespace: kube-system
-      values:
-        csi:
-          cephcsi:
-            image: jrefi/ceph-csi:latest
-          registrar:
-            image: jrefi/csi-node-driver-registrar:latest
-          provisioner:
-            image: jrefi/csi-provisioner:latest
-          snapshotter:
-            image: jrefi/csi-snapshotter:latest
-          attacher:
-            image: jrefi/csi-attacher:latest
-    when: k8s_root
-
-  - name: Copy ceph-cluster chart
-    copy:
-      src: rook-cluster/
-      dest: /opt/rook-cluster
-    when: k8s_root
-
-  - name: Install ceph-cluster
-    helm_cli:
-      name: ceph-cluster
-      state: present
-      chart_ref: /opt/rook-cluster
-      release_namespace: rook-ceph
-      tiller_namespace: kube-system
-      values:
-        pools:
-          replicated:
-            - name: high
-              replicas: 3
-            - name: low
-              replicas: 2
-    when: k8s_root
-
-  # WORKAROUND DUE TO https://github.com/helm/charts/pull/17268
-  - name: Clone prometheus chart
-    git:
-      repo: https://github.com/oke-py/charts.git
-      version: prometheus
-      dest: /opt/prometheus-chart
-    when: k8s_root
-
-  - name: Install prometheus
-    helm_cli:
-      name: prometheus
-      state: present
-      chart_ref: /opt/prometheus-chart/stable/prometheus
-      release_namespace: prometheus
-      tiller_namespace: kube-system
-      values:
-        alertmanager:
-          ingress:
-            enabled: True
-            hosts:
-              - alertmanager.apps.huettner.local
-          persistentVolume:
-            storageClass: rook-ceph-block-low
-          statefulSet:
-            enabled: True
-        configmapReload:
-          image:
-            tag: v0.3.0
-        kubeStateMetrics:
-          image:
-            repository: carlosedp/kube-state-metrics
-            tag: v1.7.2
-        pushgateway:
-          enabled: False
-        server:
-          global:
-            scrape_interval: 15s
-          ingress:
-            enabled: True
-            hosts: 
-              - prometheus.apps.huettner.local
-          persistentVolume:
-            storageClass: rook-ceph-block-low
-          statefulSet:
-            enabled: True
-        serverFiles:
-          alerts: "{{ prometheus_alerts }}"
-
-  - name: Install grafana
-    helm_cli:
-      name: grafana
-      state: present
-      chart_ref: stable/grafana
-      release_namespace: prometheus
-      tiller_namespace: kube-system
+      chart_repo_url: https://charts.fluxcd.io
+      chart_ref: helm-operator
       values:
         image:
-          repository: grafana/grafana-arm64v8-linux # Temporary Fix for https://github.com/grafana/grafana/issues/19585
-          tag: dev-musl
-        persistence:
-          enabled: True
-          storageClassName: rook-ceph-block-low
-        ingress:
-          enabled: True
-          hosts:
-            - grafana.apps.huettner.local
-        datasources:
-          datasources.yaml:
-            apiVersion: 1
-            datasources:
-              - name: Prometheus
-                type: prometheus
-                access: proxy
-                isDefault: true
-                url: http://prometheus-server.prometheus.svc.cluster.local
-        plugins:
-          - grafana-piechart-panel
+          repository: docker.io/huettner94/helm-operator
+          tag: 1.0.0-rc3-arm64
+
+  - name: Add fluxcd
+    helm_cli:
+      name: flux
+      state: present
+      release_namespace: fluxcd
+      tiller_namespace: kube-system
+      chart_repo_url: https://charts.fluxcd.io
+      chart_ref: flux
+      values:
+        image:
+          repository: docker.io/huettner94/flux
+          tag: 1.15.0-arm64
+        memcached:
+          tag: "1.5.20"
+        git:
+          url: git@github.com:huettner94/k8s-flux.git
 
   when: k8s_root
